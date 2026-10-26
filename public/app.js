@@ -252,7 +252,7 @@ async function refresh() {
       }
     }
     render();
-  } catch (error) { notice(error.message); }
+  } catch (error) { notice(error.message); render(); }
   finally { refreshing = false; clearTimeout(timer); timer = setTimeout(refresh, local ? 3000 : 10000); }
 }
 $('refresh').addEventListener('click', refresh);
