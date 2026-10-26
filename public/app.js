@@ -1,4 +1,4 @@
-import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-2';
+import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-3';
 const $ = id => document.getElementById(id);
 const stageIds = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music', 'split', 'done'];
 const stageLabels = ['Histoire', 'Images', 'Vidéos', 'Assemblage', 'Sous-titres', 'Musique', 'Trois parties', 'Livraison prête'];

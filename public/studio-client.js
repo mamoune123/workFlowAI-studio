@@ -9,7 +9,7 @@ export function validBackend(value) {
 }
 export class StudioClient {
   constructor({ base, storage, legacyStorage, fetcher = fetch, now = () => Date.now(), configURL = 'config.json', repository = 'mamoune123/workFlowAI-studio' }) {
-    this.base = base || ''; this.storage = storage; this.legacyStorage = legacyStorage; this.fetcher = fetcher; this.now = now;
+    this.base = base || ''; this.storage = storage; this.legacyStorage = legacyStorage; this.fetcher = fetcher.bind(globalThis); this.now = now;
     this.configURL = configURL; this.repository = repository; this.online = false; this.discoveryAt = -Infinity; this.publicDiscoveryAt = -Infinity; this.discoveryCount = 0;
     try { this.device = storage.getItem('workflowai-device') || ''; } catch { this.device = ''; }
     try { this.access = legacyStorage?.getItem('workflowai-session') || ''; } catch { this.access = ''; }
