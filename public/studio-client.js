@@ -10,7 +10,7 @@ export function validBackend(value) {
 export class StudioClient {
   constructor({ base, storage, legacyStorage, fetcher = fetch, now = () => Date.now(), configURL = 'config.json', repository = 'mamoune123/workFlowAI-studio' }) {
     this.base = base || ''; this.storage = storage; this.legacyStorage = legacyStorage; this.fetcher = fetcher; this.now = now;
-    this.configURL = configURL; this.repository = repository; this.online = false; this.discoveryAt = -Infinity; this.publicDiscoveryAt = -Infinity;
+    this.configURL = configURL; this.repository = repository; this.online = false; this.discoveryAt = -Infinity; this.publicDiscoveryAt = -Infinity; this.discoveryCount = 0;
     try { this.device = storage.getItem('workflowai-device') || ''; } catch { this.device = ''; }
     try { this.access = legacyStorage?.getItem('workflowai-session') || ''; } catch { this.access = ''; }
   }
@@ -35,8 +35,9 @@ export class StudioClient {
       const response = await this.fetcher(`${this.configURL}?reconnect=${this.now()}`, { cache: 'no-store', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(8000) });
       if (response.ok && accept(await response.json())) return true;
     } catch {}
-    if (this.now() - this.publicDiscoveryAt < 60000) return false;
+    if (this.now() - this.publicDiscoveryAt < (this.discoveryCount < 3 ? 15000 : 180000)) return false;
     this.publicDiscoveryAt = this.now();
+    this.discoveryCount++;
     try {
       const response = await this.fetcher(`https://api.github.com/repos/${this.repository}/contents/public/config.json?ref=main&reconnect=${this.now()}`, {
         cache: 'no-store', headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000),
@@ -58,7 +59,7 @@ export class StudioClient {
         signal: options.signal || AbortSignal.timeout(resource === '/api/music' ? 300000 : 20000),
         headers: { ...options.headers, ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
       });
-      if ([502, 503, 504].includes(response.status)) throw new StudioConnectionError();
+      if ([502, 503, 504].includes(response.status)) { await response.body?.cancel(); throw new StudioConnectionError(); }
     } catch {
       this.online = false;
       await this.discover();
@@ -68,6 +69,7 @@ export class StudioClient {
         : 'Connexion interrompue. La demande n’a pas été renvoyée automatiquement : vérifie son état dans Suivi avant de réessayer.');
     }
     this.online = true;
+    this.discoveryCount = 0;
     const data = response.status === 204 ? null : await response.json().catch(() => ({}));
     if (response.status === 401) throw new StudioAuthError(data?.error || 'Cet accès a été déconnecté. Saisis le code du studio.');
     if (!response.ok) throw new Error(data?.error || `Le studio a répondu ${response.status}.`);

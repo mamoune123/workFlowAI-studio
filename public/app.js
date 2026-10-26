@@ -1,4 +1,4 @@
-import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-1';
+import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-2';
 const $ = id => document.getElementById(id);
 const stageIds = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music', 'split', 'done'];
 const stageLabels = ['Histoire', 'Images', 'Vidéos', 'Assemblage', 'Sous-titres', 'Musique', 'Trois parties', 'Livraison prête'];
@@ -64,8 +64,8 @@ function updateForm() {
   $('budget-field').hidden = ['finish', 'check'].includes(mode);
   $('generate').textContent = ({ generate: 'Générer mon histoire ↗', resume: 'Reprendre le traitement ↗', finish: 'Préparer mes trois parties ↗', check: 'Vérifier sans générer ↗' })[mode];
   const active = dashboard.jobs.some(job => ['queued', 'running'].includes(job.status));
-  $('generate').disabled = !connected() || busy || active;
-  $('import-button').disabled = !connected() || busy;
+  $('generate').disabled = !connected() || busy || active || shared && !studioClient.online;
+  $('import-button').disabled = !connected() || busy || shared && !studioClient.online;
   if (active) $('form-message').textContent = 'Un traitement est en cours. Retrouve son avancement dans Suivi.';
   else if ($('form-message').textContent.startsWith('Un traitement')) $('form-message').textContent = '';
 }
