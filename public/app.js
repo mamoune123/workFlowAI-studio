@@ -98,7 +98,7 @@ async function download(entry, file, button) {
   button.disabled = true; const original = button.textContent; button.textContent = 'Préparation…';
   try {
     if (local) {
-      const a = element('a'), url = new URL(file.url, location.href); url.searchParams.set('download', '1'); a.href = url.href; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove();
+      const a = element('a'), url = new URL(shared && streamURL(file) || file.url, location.href); if (!shared || !streamURL(file)) url.searchParams.set('download', '1'); a.href = url.href; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove();
     } else if (streamURL(file)) {
       const a = element('a'); a.href = streamURL(file); a.download = `${entry.title}-${file.kind}.mp4`; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
     } else {
@@ -113,7 +113,7 @@ async function play(entry, file, button) {
   $('player-title').textContent = `${entry.title} · ${file.label}`; $('player-message').textContent = 'Chargement de la vidéo…';
   $('player-dialog').showModal(); button.disabled = true;
   try {
-    const direct = local ? file.url : streamURL(file);
+    const direct = shared ? streamURL(file) || file.url : local ? file.url : streamURL(file);
     if (!direct) throw new Error('Le Mac doit renouveler le lien de lecture. Le téléchargement reste disponible via « Ouvrir sur GitHub ».');
     const src = direct;
     if (!$('player-dialog').open) { if (!local) URL.revokeObjectURL(src); return; }
