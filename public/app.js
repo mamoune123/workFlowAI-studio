@@ -1,9 +1,10 @@
+import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-1';
 const $ = id => document.getElementById(id);
 const stageIds = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music', 'split', 'done'];
 const stageLabels = ['Histoire', 'Images', 'Vidéos', 'Assemblage', 'Sous-titres', 'Musique', 'Trois parties', 'Livraison prête'];
 const statusLabels = { queued: 'En attente', running: 'En cours', complete: 'Terminé', failed: 'Interrompu' };
 let config, local = false, token = '', dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
-let shared = false, studioSession = '';
+let shared = false, studioClient;
 let timer, busy = false, refreshing = false, playerURL, selectedMusic = '', pendingImport, activeTab = 'library';
 const getStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
@@ -14,25 +15,29 @@ const recentImports = new Map();
 const downloaded = getStored('workflowai-downloads', {});
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const notice = text => { $('global-message').textContent = text; };
-const connected = () => shared ? Boolean(studioSession) : local || Boolean(token);
+const connected = () => shared ? Boolean(studioClient?.connected) : local || Boolean(token);
 const repo = () => `https://api.github.com/repos/${config.owner}/${config.repository}`;
 const dataRef = () => encodeURIComponent(config.dataRef || 'studio-data');
 const date = value => new Intl.DateTimeFormat('fr', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const duration = seconds => { const total = Math.round(seconds); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`; };
 async function request(url, options = {}, binary = false) {
   const backendRequest = shared && url.startsWith('/');
-  if (backendRequest) url = (config.apiBase || '') + url;
+  if (backendRequest) {
+    try {
+      const result = await studioClient.request(url, options);
+      if (studioClient.base) config.apiBase = studioClient.base;
+      return result;
+    } catch (error) {
+      if (error instanceof StudioAuthError) $('auth').hidden = false;
+      throw error;
+    }
+  }
   const authorized = url.startsWith('https://api.github.com/');
   const response = await fetch(url, { ...options, cache: 'no-store', referrerPolicy: 'no-referrer', headers: {
     ...(authorized ? { Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } : {}),
-    ...(backendRequest && studioSession ? { Authorization: `Bearer ${studioSession}` } : {}), ...options.headers,
+    ...options.headers,
   } });
   if (!response.ok) {
-    if (shared && response.status === 401) {
-      studioSession = ''; sessionStorage.removeItem('workflowai-session'); $('auth').hidden = false;
-      const result = await response.json().catch(() => ({}));
-      throw new Error(result.error || 'Session expirée. Connecte-toi avec le code du studio.');
-    }
     if ([401, 403].includes(response.status)) throw new Error(shared ? 'Accès refusé au studio.' : 'Connexion refusée : vérifie le token et les permissions Actions / Contents du dépôt workFlowAI.');
     const result = await response.json().catch(() => ({}));
     throw new Error(result.error || (response.status === 404 ? 'Fichier privé introuvable. Vérifie ton accès au dépôt workFlowAI.' : `Erreur ${response.status}. Réessaie dans un instant.`));
@@ -47,6 +52,12 @@ function tab(name) {
 for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => tab(button.dataset.tab));
 for (const button of document.querySelectorAll('[data-go]')) button.addEventListener('click', () => tab(button.dataset.go));
 $('open-auth').addEventListener('click', () => { $('auth').hidden = !$('auth').hidden; if (!$('auth').hidden) $('token').focus(); });
+$('logout').addEventListener('click', async () => {
+  try { await studioClient.logout(); }
+  catch { notice('L’accès a été oublié sur cet appareil. Le serveur était injoignable.'); }
+  dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
+  $('auth').hidden = false; render();
+});
 function updateForm() {
   const mode = $('mode').value;
   $('story-field').hidden = mode === 'generate'; $('story').required = mode !== 'generate';
@@ -205,10 +216,11 @@ function renderActivity() {
 }
 function render() {
   fillChoices(); renderLibrary(); renderActivity(); updateForm();
-  const online = local || dashboard.heartbeat && Date.now() - Date.parse(dashboard.heartbeat) < 95000;
-  $('mac-status').textContent = !connected() ? 'Connexion requise' : online ? 'Mac connecté' : 'Mac hors ligne';
+  const online = shared ? studioClient.online : local || dashboard.heartbeat && Date.now() - Date.parse(dashboard.heartbeat) < 95000;
+  $('mac-status').textContent = !connected() ? 'Connexion requise' : online ? 'Mac connecté' : 'Reconnexion…';
   $('mac-status').classList.toggle('offline', connected() && !online);
-  $('sync-status').textContent = !connected() ? 'Connecte ton compte pour retrouver les traitements.' : online ? `Actualisé ${dashboard.heartbeat ? date(dashboard.heartbeat) : 'maintenant'} · actualisation automatique, sans fermer cet onglet.` : 'Mac hors ligne : le dernier état reste visible. Les demandes attendent sa reconnexion.';
+  $('sync-status').textContent = !connected() ? 'Connecte ton compte pour retrouver les traitements.' : online ? `Actualisé ${dashboard.heartbeat ? date(dashboard.heartbeat) : 'maintenant'} · actualisation automatique.` : 'Le serveur se reconnecte. Ton accès et le dernier état affiché sont conservés.';
+  $('logout').hidden = !shared || !connected();
 }
 async function refresh() {
   if (refreshing || !connected()) return;
@@ -257,8 +269,9 @@ async function refresh() {
       }
     }
     render();
+    if ($('global-message').textContent.startsWith('Le serveur se reconnecte')) notice('Connexion rétablie.');
   } catch (error) { notice(error.message); render(); }
-  finally { refreshing = false; clearTimeout(timer); timer = setTimeout(refresh, local ? 3000 : 10000); }
+  finally { refreshing = false; clearTimeout(timer); timer = setTimeout(refresh, shared && !studioClient.online ? 10000 : local ? 3000 : 10000); }
 }
 $('refresh').addEventListener('click', refresh);
 $('auth-form').addEventListener('submit', async event => {
@@ -266,8 +279,7 @@ $('auth-form').addEventListener('submit', async event => {
   try {
     if (shared) {
       const code = token; token = '';
-      const session = await request('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
-      studioSession = session.token; sessionStorage.setItem('workflowai-session', studioSession);
+      await studioClient.login(code);
       $('auth-message').textContent = ''; $('auth').hidden = true; $('open-auth').textContent = 'Mon accès';
       await refresh(); return;
     }
@@ -333,11 +345,14 @@ try {
     shared = true; local = true;
   }
   if (shared) {
-    studioSession = sessionStorage.getItem('workflowai-session') || '';
+    studioClient = new StudioClient({ base: config.apiBase, storage: localStorage, legacyStorage: sessionStorage });
     document.querySelector('label[for=token]').textContent = 'Code d’accès au studio'; $('token').placeholder = 'Colle ton code d’accès';
     document.querySelector('#auth details summary').textContent = 'Comment obtenir le code ?';
-    document.querySelector('#auth details p').textContent = 'Le propriétaire du studio te transmet son code d’accès. Aucun compte ni token GitHub n’est nécessaire. La session de cet onglet reste valable un jour.';
+    document.querySelector('#auth details p').textContent = 'Entre le code une seule fois sur cet appareil. La connexion reste mémorisée après fermeture du navigateur, jusqu’à une déconnexion ou un changement du code du studio. Aucun compte GitHub n’est nécessaire.';
     $('open-auth').textContent = 'Mon accès';
+    if (connected()) {
+      try { await studioClient.restore(); } catch (error) { notice(error.message); }
+    }
   }
   $('auth').hidden = connected(); $('open-auth').hidden = local && !shared;
   if (connected()) await refresh();
