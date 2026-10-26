@@ -310,7 +310,7 @@ $('music-file').addEventListener('change', async () => {
       recentImports.set(imported.name, Date.now());
       if (!dashboard.music.includes(imported.name)) dashboard.music.push(imported.name);
       selectedMusic = imported.name; fillChoices();
-      selectedMusic = imported.name; $('upload-bar').value = 100; $('upload-message').textContent = `✓ ${imported.name} est prêt à être utilisé.`;
+      $('upload-bar').value = 100; $('upload-message').textContent = `✓ ${imported.name} est prêt à être utilisé.`;
     } else {
       const id = crypto.randomUUID(), name = file.name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._ -]/g, '-').slice(-120).replace(/^\.+/, '');
       const content = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.onprogress = event => { if (event.lengthComputable) $('upload-bar').value = Math.round(event.loaded / event.total * 25); }; reader.readAsDataURL(file); });
