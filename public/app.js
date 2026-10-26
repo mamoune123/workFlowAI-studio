@@ -3,6 +3,7 @@ const stageIds = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music',
 const stageLabels = ['Histoire', 'Images', 'Vidéos', 'Assemblage', 'Sous-titres', 'Musique', 'Trois parties', 'Livraison prête'];
 const statusLabels = { queued: 'En attente', running: 'En cours', complete: 'Terminé', failed: 'Interrompu' };
 let config, local = false, token = '', dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
+let shared = false, studioSession = '';
 let timer, busy = false, refreshing = false, playerURL, selectedMusic = '', pendingImport, activeTab = 'library';
 const getStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
@@ -12,18 +13,26 @@ let remoteRuns = [], runsUpdatedAt = 0;
 const downloaded = getStored('workflowai-downloads', {});
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const notice = text => { $('global-message').textContent = text; };
-const connected = () => local || Boolean(token);
+const connected = () => shared ? Boolean(studioSession) : local || Boolean(token);
 const repo = () => `https://api.github.com/repos/${config.owner}/${config.repository}`;
 const dataRef = () => encodeURIComponent(config.dataRef || 'studio-data');
 const date = value => new Intl.DateTimeFormat('fr', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const duration = seconds => { const total = Math.round(seconds); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`; };
 async function request(url, options = {}, binary = false) {
+  const backendRequest = shared && url.startsWith('/');
+  if (backendRequest) url = (config.apiBase || '') + url;
   const authorized = url.startsWith('https://api.github.com/');
   const response = await fetch(url, { ...options, cache: 'no-store', referrerPolicy: 'no-referrer', headers: {
-    ...(authorized ? { Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } : {}), ...options.headers,
+    ...(authorized ? { Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } : {}),
+    ...(backendRequest && studioSession ? { Authorization: `Bearer ${studioSession}` } : {}), ...options.headers,
   } });
   if (!response.ok) {
-    if ([401, 403].includes(response.status)) throw new Error('Connexion refusée : vérifie le token et les permissions Actions / Contents du dépôt workFlowAI.');
+    if (shared && response.status === 401) {
+      studioSession = ''; sessionStorage.removeItem('workflowai-session'); $('auth').hidden = false;
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || 'Session expirée. Connecte-toi avec le code du studio.');
+    }
+    if ([401, 403].includes(response.status)) throw new Error(shared ? 'Accès refusé au studio.' : 'Connexion refusée : vérifie le token et les permissions Actions / Contents du dépôt workFlowAI.');
     const result = await response.json().catch(() => ({}));
     throw new Error(result.error || (response.status === 404 ? 'Fichier privé introuvable. Vérifie ton accès au dépôt workFlowAI.' : `Erreur ${response.status}. Réessaie dans un instant.`));
   }
@@ -65,6 +74,9 @@ function flowCreditLabel(balance) {
   return balance ? 'Solde Flow indisponible au dernier relevé' : '';
 }
 function safeFileURL(url) {
+  if (shared) {
+    try { const resource = new URL(url); return resource.origin === new URL(config.apiBase || location.origin).origin && /^\/media\/[a-f0-9]{24}\/(full|part-[123])\.mp4$/.test(resource.pathname); } catch { return false; }
+  }
   if (local) return /^\/media\/[a-f0-9]{24}\/(full|part-[123])\.mp4$/.test(url || '');
   return typeof url === 'string' && url.startsWith(`https://github.com/${config.owner}/${config.repository}/releases/download/`);
 }
@@ -86,7 +98,7 @@ async function download(entry, file, button) {
   button.disabled = true; const original = button.textContent; button.textContent = 'Préparation…';
   try {
     if (local) {
-      const a = element('a'); a.href = file.url + '?download=1'; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove();
+      const a = element('a'), url = new URL(file.url, location.href); url.searchParams.set('download', '1'); a.href = url.href; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove();
     } else if (streamURL(file)) {
       const a = element('a'); a.href = streamURL(file); a.download = `${entry.title}-${file.kind}.mp4`; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
     } else {
@@ -247,6 +259,13 @@ $('refresh').addEventListener('click', refresh);
 $('auth-form').addEventListener('submit', async event => {
   event.preventDefault(); token = $('token').value.trim(); $('token').value = ''; $('connect').disabled = true;
   try {
+    if (shared) {
+      const code = token; token = '';
+      const session = await request('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      studioSession = session.token; sessionStorage.setItem('workflowai-session', studioSession);
+      $('auth-message').textContent = ''; $('auth').hidden = true; $('open-auth').textContent = 'Mon accès';
+      await refresh(); return;
+    }
     if (!token) throw new Error('Renseigne ton token personnel GitHub.');
     const user = await request('https://api.github.com/user');
     if (user.login.toLowerCase() !== config.owner.toLowerCase()) throw new Error('Connecte le compte propriétaire du studio.');
@@ -296,8 +315,23 @@ $('music-file').addEventListener('change', async () => {
 });
 try {
   config = await request('config.json');
-  if (['127.0.0.1', 'localhost'].includes(location.hostname)) { const response = await fetch('/api/config'); local = response.ok && (await response.json()).mode === 'local'; }
-  $('auth').hidden = local; $('open-auth').hidden = local;
-  if (local) await refresh();
+  if (['127.0.0.1', 'localhost'].includes(location.hostname)) {
+    const response = await fetch('/api/config'), info = response.ok ? await response.json() : {};
+    local = info.mode === 'local' || info.mode === 'shared'; shared = info.mode === 'shared';
+    if (shared) config.apiBase = '';
+  } else if (config.apiBase) {
+    const endpoint = new URL(config.apiBase);
+    if (endpoint.protocol !== 'https:' || !endpoint.hostname.endsWith('.trycloudflare.com')) throw new Error('Adresse du studio invalide.');
+    shared = true; local = true;
+  }
+  if (shared) {
+    studioSession = sessionStorage.getItem('workflowai-session') || '';
+    document.querySelector('label[for=token]').textContent = 'Code d’accès au studio'; $('token').placeholder = 'Colle ton code d’accès';
+    document.querySelector('#auth details summary').textContent = 'Comment obtenir le code ?';
+    document.querySelector('#auth details p').textContent = 'Le propriétaire du studio te transmet son code d’accès. Aucun compte ni token GitHub n’est nécessaire. La session de cet onglet reste valable un jour.';
+    $('open-auth').textContent = 'Mon accès';
+  }
+  $('auth').hidden = connected(); $('open-auth').hidden = local && !shared;
+  if (connected()) await refresh();
   else { $('mac-status').textContent = 'Connexion requise'; render(); }
 } catch (error) { notice(error.message); }
