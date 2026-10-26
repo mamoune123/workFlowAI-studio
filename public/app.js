@@ -145,7 +145,8 @@ function renderActivity() {
   const fragment = document.createDocumentFragment();
   for (const job of dashboard.jobs) {
     const card = element('article', undefined, 'job-card'), heading = element('div', undefined, 'job-heading'), title = element('div');
-    title.append(element('h3', job.title || 'Nouvelle histoire'), element('p', `${date(job.createdAt)}${job.mode === 'check' ? ' · Vérification sans génération' : ''}`, 'job-meta'));
+    const operation = ({ generate: 'Nouvelle histoire', resume: 'Reprise', finish: 'Finition / musique', check: 'Vérification sans génération' })[job.mode] || '';
+    title.append(element('h3', job.title || 'Nouvelle histoire'), element('p', `${date(job.createdAt)} · ${operation}`, 'job-meta'));
     heading.append(title, element('span', statusLabels[job.status] || job.status, 'badge')); card.append(heading);
     const index = stageIds.indexOf(job.stage), label = job.status === 'queued' ? 'En attente du Mac' : job.mode === 'check' && job.status === 'complete' ? 'Vérification terminée' : job.detail?.message || stageLabels[index] || 'Vérification du projet';
     const progressHeading = element('div', undefined, 'progress-header');
@@ -153,7 +154,8 @@ function renderActivity() {
     const bar = element('progress'); bar.max = 100; bar.value = job.percent || 0; bar.setAttribute('aria-label', 'Avancement des étapes');
     const steps = element('ol', undefined, 'steps');
     for (let i = 0; i < 7; i++) { const li = element('li', stageLabels[i], i === index ? 'active' : i < index ? 'done' : ''); steps.append(li); }
-    card.append(progressHeading, bar, steps);
+    card.append(progressHeading, bar);
+    if (job.mode !== 'check') card.append(steps);
     if (job.counts?.total) {
       const counters = element('div', undefined, 'counters');
       for (const [name, value] of [['Images', job.counts.images], ['Vidéos', job.counts.videos]]) { const counter = element('span', `${name} `); counter.append(element('strong', `${value} / ${job.counts.total}`)); counters.append(counter); }
@@ -212,7 +214,7 @@ $('auth-form').addEventListener('submit', async event => {
     const user = await request('https://api.github.com/user');
     if (user.login.toLowerCase() !== config.owner.toLowerCase()) throw new Error('Connecte le compte propriétaire du studio.');
     await request(`${repo()}/actions/workflows/${config.workflow}`);
-    $('auth-message').textContent = ''; $('auth').hidden = true; $('open-auth').textContent = `Compte : ${user.login}`;
+    $('auth-message').textContent = ''; $('auth').hidden = true; $('open-auth').textContent = 'Compte'; $('open-auth').title = user.login;
     await refresh();
     const id = new URLSearchParams(location.hash.slice(1)).get('video');
     if (id && /^[a-f0-9]{24}$/.test(id)) document.getElementById(`video-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
