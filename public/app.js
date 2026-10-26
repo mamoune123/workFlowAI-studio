@@ -10,6 +10,7 @@ const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(v
 let pending = getStored('workflowai-pending', []).filter(job => Date.now() - Date.parse(job.createdAt) < 86400000);
 pendingImport = getStored('workflowai-import', null);
 let remoteRuns = [], runsUpdatedAt = 0;
+const recentImports = new Map();
 const downloaded = getStored('workflowai-downloads', {});
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const notice = text => { $('global-message').textContent = text; };
@@ -241,6 +242,10 @@ async function refresh() {
         }
       }
     }
+    for (const [name, at] of recentImports) {
+      if (next.music.includes(name) || Date.now() - at > 30000) recentImports.delete(name);
+      else next.music.push(name);
+    }
     pending = pending.filter(job => !next.jobs.some(item => item.id === job.id)); store('workflowai-pending', pending);
     next.jobs = [...pending, ...next.jobs]; dashboard = next;
     if (pendingImport) {
@@ -302,6 +307,9 @@ $('music-file').addEventListener('change', async () => {
     busy = true; updateForm(); $('upload-message').textContent = 'Transfert de la musique…';
     if (local) {
       const imported = await request(`/api/music?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+      recentImports.set(imported.name, Date.now());
+      if (!dashboard.music.includes(imported.name)) dashboard.music.push(imported.name);
+      selectedMusic = imported.name; fillChoices();
       selectedMusic = imported.name; $('upload-bar').value = 100; $('upload-message').textContent = `✓ ${imported.name} est prêt à être utilisé.`;
     } else {
       const id = crypto.randomUUID(), name = file.name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._ -]/g, '-').slice(-120).replace(/^\.+/, '');
