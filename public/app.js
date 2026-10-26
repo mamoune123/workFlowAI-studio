@@ -7,6 +7,8 @@ let timer, busy = false, refreshing = false, playerURL, selectedMusic = '', pend
 const getStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
 let pending = getStored('workflowai-pending', []).filter(job => Date.now() - Date.parse(job.createdAt) < 86400000);
+pendingImport = getStored('workflowai-import', null);
+let remoteRuns = [], runsUpdatedAt = 0;
 const downloaded = getStored('workflowai-downloads', {});
 const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const notice = text => { $('global-message').textContent = text; };
@@ -58,9 +60,17 @@ function fillChoices() {
   if (dashboard.music.includes(music)) { $('music').value = music; selectedMusic = ''; }
 }
 function fileMeta(file) { return `${file.scenes ? `${file.scenes} scènes · ` : ''}${duration(file.duration)} · ${Math.round(file.bytes / 1048576)} Mo`; }
+function flowCreditLabel(balance) {
+  if (balance?.status === 'observed') return `Solde Flow : ${balance.remaining.toLocaleString('fr')} crédits · relevé le ${date(balance.observedAt)}`;
+  return balance ? 'Solde Flow indisponible au dernier relevé' : '';
+}
 function safeFileURL(url) {
   if (local) return /^\/media\/[a-f0-9]{24}\/(full|part-[123])\.mp4$/.test(url || '');
   return typeof url === 'string' && url.startsWith(`https://github.com/${config.owner}/${config.repository}/releases/download/`);
+}
+function streamURL(file) {
+  if (file.streamUrl && Date.parse(file.streamExpiresAt) > Date.now() && new URL(file.streamUrl).hostname === 'release-assets.githubusercontent.com') return file.streamUrl;
+  return null;
 }
 function markDownload(entry, file) {
   downloaded[`${entry.id}/${file.kind}`] = new Date().toISOString(); store('workflowai-downloads', downloaded);
@@ -77,9 +87,10 @@ async function download(entry, file, button) {
   try {
     if (local) {
       const a = element('a'); a.href = file.url + '?download=1'; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove();
+    } else if (streamURL(file)) {
+      const a = element('a'); a.href = streamURL(file); a.download = `${entry.title}-${file.kind}.mp4`; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
     } else {
-      const blob = await binaryFile(file), url = URL.createObjectURL(blob), a = element('a');
-      a.href = url; a.download = `${entry.title}-${file.kind}.mp4`; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+      const a = element('a'); a.href = file.url; a.target = '_blank'; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
     }
     markDownload(entry, file); notice('Téléchargement demandé. Le lien reste dans ta bibliothèque.');
   } catch (error) {
@@ -90,9 +101,11 @@ async function play(entry, file, button) {
   $('player-title').textContent = `${entry.title} · ${file.label}`; $('player-message').textContent = 'Chargement de la vidéo…';
   $('player-dialog').showModal(); button.disabled = true;
   try {
-    const src = local ? file.url : URL.createObjectURL(await binaryFile(file));
+    const direct = local ? file.url : streamURL(file);
+    if (!direct) throw new Error('Le Mac doit renouveler le lien de lecture. Le téléchargement reste disponible via « Ouvrir sur GitHub ».');
+    const src = direct;
     if (!$('player-dialog').open) { if (!local) URL.revokeObjectURL(src); return; }
-    if (!local) playerURL = src;
+    if (!direct) playerURL = src;
     $('player').src = src; $('player-message').textContent = ''; $('player').load();
   } catch (error) { $('player-message').textContent = error.message; }
   finally { button.disabled = false; }
@@ -110,6 +123,7 @@ function renderLibrary() {
     card.querySelector('h3').textContent = entry.title;
     card.querySelector('.card-meta').textContent = `${entry.scenes} scènes · ${duration(entry.duration)} · ${date(entry.createdAt)}`;
     card.querySelector('.card-music').textContent = entry.music ? `♫ ${entry.music}` : 'Dialogues d’origine · sans musique';
+    if (entry.flowCredits) card.querySelector('.card-summary').append(element('p', flowCreditLabel(entry.flowCredits), 'card-credits'));
     const files = [...entry.files].sort((a, b) => (a.kind === 'full') - (b.kind === 'full'));
     for (const file of files) {
       const row = element('div', undefined, 'file-row'), info = element('div', undefined, 'file-info');
@@ -166,6 +180,7 @@ function renderActivity() {
       card.append(element('p', `${job.status === 'complete' ? 'Durée' : 'Temps écoulé'} : ${Math.max(0, Math.floor((end - Date.parse(job.startedAt)) / 60000))} min · les compteurs correspondent aux fichiers enregistrés.`, 'hint'));
     }
     if (job.error) card.append(element('p', job.error, 'job-error'));
+    if (job.flowCredits) card.append(element('p', flowCreditLabel(job.flowCredits), 'card-credits'));
     const actions = element('div', undefined, 'job-actions');
     if (job.status === 'complete' && job.mode !== 'check') { const button = element('button', 'Retrouver mes vidéos →', 'text-button'); button.addEventListener('click', () => { $('search').value = ''; renderLibrary(); tab('library'); }); actions.append(button); }
     if (job.status === 'failed' && job.story) { const button = element('button', 'Reprendre les scènes existantes →', 'text-button'); button.addEventListener('click', () => { $('mode').value = 'resume'; $('story').value = job.story; updateForm(); tab('create'); }); actions.append(button); }
@@ -191,6 +206,28 @@ async function refresh() {
     else {
       const response = await request(`${repo()}/contents/catalog.json?ref=${dataRef()}`);
       next = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(response.content.replace(/\s/g, '')), char => char.charCodeAt(0))));
+      if (Date.now() - runsUpdatedAt > 20000) {
+        const result = await request(`${repo()}/actions/workflows/${config.workflow}/runs?event=workflow_dispatch&per_page=50`);
+        remoteRuns = result.workflow_runs; runsUpdatedAt = Date.now();
+      }
+      for (const run of remoteRuns) {
+        const match = run.display_title.match(/^(generate|resume|finish|check)\s*·\s*([a-zA-Z0-9-]{6,100})$/);
+        if (!match) continue;
+        const [, mode, id] = match;
+        let job = next.jobs.find(item => item.id === id);
+        if (!job) {
+          job = { id, mode, title: mode === 'generate' ? 'Nouvelle histoire' : 'Traitement demandé', createdAt: run.created_at, stage: 'story', percent: 0 };
+          next.jobs.push(job);
+        }
+        job.runUrl = run.html_url; job.runId = run.id;
+        if (run.status === 'completed' && run.conclusion !== 'success') {
+          job.status = 'failed'; job.error ||= `Le traitement GitHub est ${run.conclusion === 'cancelled' ? 'annulé' : 'arrêté'}. Consulte le journal pour le reprendre.`;
+        } else if (!job.status) {
+          job.status = run.status === 'completed' ? 'complete' : run.status === 'in_progress' ? 'running' : 'queued';
+          if (job.status === 'complete') { job.stage = 'done'; job.percent = 100; }
+          else if (job.status === 'running') job.detail = { message: 'Démarrage du traitement sur le Mac' };
+        }
+      }
     }
     pending = pending.filter(job => !next.jobs.some(item => item.id === job.id)); store('workflowai-pending', pending);
     next.jobs = [...pending, ...next.jobs]; dashboard = next;
@@ -199,7 +236,7 @@ async function refresh() {
       if (imported) {
         $('upload-message').textContent = imported.status === 'ready' ? `✓ ${imported.name} est prêt à être utilisé.` : imported.error;
         if (imported.status === 'ready') { selectedMusic = imported.name; $('upload-bar').value = 100; }
-        pendingImport = null;
+        pendingImport = null; store('workflowai-import', null);
       }
     }
     render();
@@ -251,7 +288,7 @@ $('music-file').addEventListener('change', async () => {
       const id = crypto.randomUUID(), name = file.name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._ -]/g, '-').slice(-120).replace(/^\.+/, '');
       const content = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.onprogress = event => { if (event.lengthComputable) $('upload-bar').value = Math.round(event.loaded / event.total * 25); }; reader.readAsDataURL(file); });
       await request(`${repo()}/contents/uploads/${encodeURIComponent(id + '--' + name)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ branch: config.dataRef || 'studio-data', message: 'Import studio music', content }) });
-      pendingImport = { id, name }; $('upload-bar').value = 65; $('upload-message').textContent = 'Fichier reçu en privé. Le Mac vérifie la piste audio avant de la proposer dans ta liste.';
+      pendingImport = { id, name }; store('workflowai-import', pendingImport); $('upload-bar').value = 65; $('upload-message').textContent = 'Fichier reçu en privé. Le Mac vérifie la piste audio avant de la proposer dans ta liste.';
     }
     await refresh();
   } catch (error) { $('upload-message').textContent = error.message; }
