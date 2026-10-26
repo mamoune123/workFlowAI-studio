@@ -321,7 +321,7 @@ try {
     if (shared) config.apiBase = '';
   } else if (config.apiBase) {
     const endpoint = new URL(config.apiBase);
-    if (endpoint.protocol !== 'https:' || !endpoint.hostname.endsWith('.trycloudflare.com')) throw new Error('Adresse du studio invalide.');
+    if (endpoint.protocol !== 'https:' || !/\.(trycloudflare\.com|lhr\.life)$/.test(endpoint.hostname)) throw new Error('Adresse du studio invalide.');
     shared = true; local = true;
   }
   if (shared) {
