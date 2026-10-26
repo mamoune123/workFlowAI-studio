@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; object-src 'none'">
+  <title>WorkflowAI — Studio</title>
+  <link rel="stylesheet" href="style.css"><script type="module" src="app.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="./"><span class="mark">W</span> WorkflowAI <span class="studio">STUDIO</span></a><span id="connection" class="badge">Connexion…</span></header>
+  <main>
+    <div class="intro"><span class="eyebrow">DE L’HISTOIRE À LA LIVRAISON</span><h1>Une histoire.<br><em>Trois parties.</em></h1><p>Génère ton histoire et retrouve les trois vidéos prêtes à publier, avec sous-titres et musique.</p></div>
+    <div class="workspace">
+      <form id="generate-form" class="panel controls">
+        <div class="panel-title"><span class="number">01</span><h2>Préparer la génération</h2></div>
+        <fieldset id="github-auth" hidden><legend>Connexion GitHub</legend><p>Token personnel limité au dépôt privé du pipeline : Actions en lecture/écriture, Contents en lecture. Il reste uniquement en mémoire dans cet onglet.</p><label for="token">Token GitHub</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"><button id="connect" class="secondary" type="button">Connecter</button><p id="auth-status" role="status"></p></fieldset>
+        <label for="mode">Que veux-tu lancer ?</label><select id="mode"><option value="generate">Générer une nouvelle histoire</option><option value="resume">Reprendre une histoire</option><option value="finish">Sous-titres, musique et trois parties</option><option value="check">Vérifier sans générer</option></select>
+        <div id="story-field" hidden><label for="story">Histoire existante</label><input id="story" list="stories" placeholder="story-2026-…"><datalist id="stories"></datalist></div>
+        <label for="music">Musique de fond <span class="optional">facultative</span></label><input id="music" list="music-list" placeholder="Aucune musique"><datalist id="music-list"></datalist><p class="hint">Dépose tes morceaux dans <code>SOUND/</code> sur le Mac. Indique le nom exact du fichier.</p>
+        <div class="volume-label"><label for="volume">Volume de la musique</label><output id="volume-value">15 %</output></div><input id="volume" type="range" min="0" max="50" value="15"><p class="hint">Les dialogues sont conservés. La musique baisse pendant les voix.</p>
+        <div id="budget-field"><label for="budget">Plafond Flow pour cette génération</label><div class="budget"><input id="budget" type="number" min="15" max="10000" step="15" value="300"><span>crédits max.</span></div></div>
+        <div class="order"><span>SOUS-TITRES</span><span>→</span><span>MUSIQUE</span><span>→</span><span>3 PARTIES</span></div>
+        <button id="generate" class="primary" type="submit">Generate <span>↗</span></button><p id="form-message" role="status"></p>
+      </form>
+      <section class="panel delivery" aria-labelledby="delivery-title">
+        <div class="panel-title"><span class="number">02</span><h2 id="delivery-title">Ta livraison</h2><span id="job-status" class="badge">EN ATTENTE</span></div>
+        <div id="empty-state"><div class="film-symbol">▶</div><h3>Le studio est prêt.</h3><p>Choisis tes réglages, puis lance Generate.<br>Tu peux laisser cet onglet ouvert pendant la création.</p></div>
+        <div id="progress" hidden><div class="progress-header"><span id="current-stage">En file d’attente</span><span id="elapsed"></span></div><div class="track"><div id="progress-bar"></div></div><ol id="stages"><li data-stage="story">Histoire</li><li data-stage="images">Images</li><li data-stage="videos">Vidéos</li><li data-stage="assembly">Assemblage</li><li data-stage="subtitles">Sous-titres</li><li data-stage="music">Musique</li><li data-stage="split">Trois parties</li></ol><p id="job-message" role="status"></p><a id="run-link" target="_blank" rel="noopener" hidden>Suivre sur GitHub ↗</a></div>
+        <div id="parts" class="parts"><article><div class="part-preview"><span>01</span></div><h3>Partie 1</h3><p id="part-1-detail">Premières scènes</p><a id="part-1-link" hidden download>Télécharger ↓</a></article><article><div class="part-preview"><span>02</span></div><h3>Partie 2</h3><p id="part-2-detail">La suite de l’histoire</p><a id="part-2-link" hidden download>Télécharger ↓</a></article><article><div class="part-preview"><span>03</span></div><h3>Partie 3</h3><p id="part-3-detail">Le dénouement</p><a id="part-3-link" hidden download>Télécharger ↓</a></article></div>
+        <div id="archive" hidden><a id="archive-link" class="secondary" target="_blank" rel="noopener">Récupérer les 3 parties sur GitHub ↗</a><p class="hint">Dans Artifacts, télécharge « livraison » : les trois MP4 et les sous-titres sont dans l’archive.</p></div>
+        <div class="delivery-footer"><span>9:16 · MP4</span><span>17 scènes → 6 + 6 + 5 &nbsp; / &nbsp; 18 scènes → 6 + 6 + 6</span></div>
+      </section>
+    </div>
+    <p class="runtime-note" id="runtime-note">Le Mac connecté à Chrome exécute la génération. Les fichiers existants sont réutilisés à la reprise.</p>
+  </main><footer><span>WORKFLOWAI</span><span>Histoire → Images → Vidéos → Sous-titres → Musique → Livraison</span></footer>
+</body></html>
