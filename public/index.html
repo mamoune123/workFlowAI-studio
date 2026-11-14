@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; img-src 'self' data: blob:; media-src 'self' blob: https://release-assets.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; base-uri 'none'; object-src 'none'">
 <title>Studio Mini-Drama</title>
-<link rel="stylesheet" href="style.css?v=studio-v4-rose">
-<script type="module" src="app.js?v=studio-v4"></script>
+<link rel="stylesheet" href="style.css?v=studio-v5">
+<script type="module" src="app.js?v=studio-v5"></script>
 </head>
 <body>
 <header class="topbar">
@@ -42,6 +42,7 @@
       <h1 id="create-title">Créer</h1>
       <div class="segmented" role="tablist" aria-label="Type de création">
         <button type="button" role="tab" class="seg active" data-mode="generate" aria-selected="true">Nouvelle</button>
+        <button type="button" role="tab" class="seg" data-mode="continue" aria-selected="false">Continuer</button>
         <button type="button" role="tab" class="seg" data-mode="resume" aria-selected="false">Reprendre</button>
         <button type="button" role="tab" class="seg" data-mode="finish" aria-selected="false">Musique</button>
       </div>
@@ -87,18 +88,25 @@
         </div>
       </div>
 
+      <div id="subtitles-field" class="card toggle-card">
+        <label class="toggle" for="subtitles">
+          <span class="toggle-text"><span class="card-title-inline">Sous-titres</span><span class="hint" id="subtitles-hint">Désactivés : la vidéo est livrée sans texte incrusté.</span></span>
+          <input id="subtitles" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span>
+        </label>
+      </div>
+
       <details class="card advanced" id="advanced">
         <summary>Réglages avancés</summary>
         <div id="budget-field" class="stack">
           <label for="budget" class="field-label">Plafond de crédits Flow</label>
           <input id="budget" type="number" inputmode="numeric" min="15" max="10000" step="15" value="350">
-          <p class="hint">Une histoire de 17 clips coûte environ 255 crédits. Les clips refusés par la modération sont remboursés par Flow mais comptent dans ce plafond.</p>
+          <p class="hint">Une partie de 6 à 7 clips coûte environ 90 à 105 crédits. Les clips refusés par la modération sont remboursés par Flow mais comptent dans ce plafond.</p>
         </div>
         <button id="check-button" type="button" class="link-button">Vérifier une histoire sans rien générer →</button>
       </details>
 
       <div class="launch">
-        <p id="summary" class="summary">17 clips de 10 s · 3 parties · ≈ 255 crédits · ≈ 1 h</p>
+        <p id="summary" class="summary">Partie 1 · 6-7 clips de 10 s · ≈ 100 crédits · ≈ 25 min</p>
         <button id="generate" class="primary-button big" type="submit">Lancer la création <span aria-hidden="true">✦</span></button>
         <p id="form-message" class="form-message" role="status"></p>
       </div>
@@ -132,7 +140,7 @@
     <div id="library-empty" class="empty">
       <span class="empty-icon" aria-hidden="true">▶</span>
       <h2 id="empty-title">Pas encore de vidéo</h2>
-      <p id="empty-description" class="muted">Chaque histoire terminée arrive ici automatiquement, avec ses 3 parties.</p>
+      <p id="empty-description" class="muted">Chaque partie terminée arrive ici automatiquement.</p>
       <button class="secondary-button" data-go="create" type="button">Créer une histoire</button>
     </div>
   </section>
@@ -162,7 +170,8 @@
   <p id="sheet-paradox" class="paradox"></p>
   <div id="sheet-parts" class="parts"></div>
   <div class="sheet-actions">
-    <button id="sheet-music" class="secondary-button" type="button">♫ Changer la musique</button>
+    <button id="sheet-continue" class="primary-button" type="button" hidden>✦ Continuer : partie 2</button>
+    <button id="sheet-music" class="secondary-button" type="button">♫ Musique / sous-titres</button>
     <button id="sheet-link" class="link-button" type="button">Copier le lien</button>
     <a id="sheet-github" class="link-button" target="_blank" rel="noopener" hidden>Ouvrir sur GitHub ↗</a>
   </div>

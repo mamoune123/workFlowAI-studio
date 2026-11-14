@@ -2,11 +2,11 @@ import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-a
 
 const $ = id => document.getElementById(id);
 const STAGES = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music', 'split', 'done'];
-const STAGE_LABELS = ['Script', 'Images', 'Vidéos', 'Montage', 'Sous-titres', 'Musique', '3 parties', 'Prêt'];
-const STAGE_DOING = ['Claude écrit le script', 'Création des images', 'Animation des clips', 'Montage des clips', 'Ajout des sous-titres', 'Mixage de la musique', 'Découpage en 3 parties', 'Livraison prête'];
+const STAGE_LABELS = ['Script', 'Images', 'Vidéos', 'Montage', 'Sous-titres', 'Musique', 'Parties', 'Prêt'];
+const STAGE_DOING = ['Claude écrit le script', 'Création des images', 'Animation des clips', 'Montage des clips', 'Ajout des sous-titres', 'Mixage de la musique', 'Découpage des parties', 'Livraison prête'];
 const STATUS = { queued: ['En attente', 'queued'], running: ['En cours', 'running'], complete: ['Terminé', 'complete'], failed: ['Interrompu', 'failed'] };
 const STYLE_EMOJI = { fruits: '🍓', ongles: '💅', objets: '🫖', pierres: '💎' };
-const MODE_LABEL = { generate: 'Nouvelle histoire', resume: 'Reprise', finish: 'Musique / finition', check: 'Vérification' };
+const MODE_LABEL = { generate: 'Nouvelle histoire · partie 1', continue: 'Partie suivante', resume: 'Reprise', finish: 'Musique / finition', check: 'Vérification' };
 const IDEA_MAX = 1500;
 
 let config, local = false, shared = false, token = '', studioClient;
@@ -103,19 +103,24 @@ function updateForm() {
   $('budget-field').hidden = ['finish', 'check'].includes(mode);
   $('music-step').textContent = isNew ? '3' : '2';
   $('volume-field').hidden = !$('music').value;
-  $('story-label').textContent = ({ resume: 'Quelle histoire reprendre ?', finish: 'Pour quelle histoire ?', check: 'Quelle histoire vérifier ?' })[mode] || '';
+  $('story-label').textContent = ({ continue: 'Quelle série continuer ?', resume: 'Quelle histoire reprendre ?', finish: 'Pour quelle histoire ?', check: 'Quelle histoire vérifier ?' })[mode] || '';
+  $('subtitles-field').hidden = mode === 'check';
+  $('subtitles-hint').textContent = $('subtitles').checked ? 'Activés : les dialogues sont incrustés en bas de la vidéo.' : 'Désactivés : la vidéo est livrée sans texte incrusté.';
+  fillStories();
   $('story-hint').textContent = ({
+    continue: 'Claude écrit la partie suivante avec les mêmes personnages, en reprenant le cliffhanger.',
     resume: 'Les images et vidéos déjà faites sont gardées : seules les manquantes sont générées.',
-    finish: 'Change ou ajoute la musique, puis refait les sous-titres et les 3 parties. Aucun crédit Flow.',
+    finish: 'Change la musique ou les sous-titres et refait les parties déjà générées. Aucun crédit Flow.',
     check: 'Contrôle ce qui manque, sans rien générer et sans dépenser de crédit.',
   })[mode] || '';
   $('summary').textContent = ({
-    generate: `${STYLE_EMOJI[selectedStyle()]} 15 à 20 clips de 10 s · 3 parties · ≈ 255 crédits · ≈ 1 h`,
+    generate: `${STYLE_EMOJI[selectedStyle()]} Partie 1 · 6-7 clips de 10 s · ≈ 100 crédits · ≈ 25 min`,
+    continue: `${nextPartLabel()} · 6-7 clips de 10 s · ≈ 100 crédits · ≈ 25 min`,
     resume: 'Reprend là où ça s’est arrêté · crédits seulement pour ce qui manque',
-    finish: 'Sous-titres → musique → 3 parties · 0 crédit',
+    finish: 'Musique et sous-titres refaits · 0 crédit',
     check: 'Vérification · 0 crédit',
   })[mode];
-  $('generate').replaceChildren(document.createTextNode(({ generate: 'Lancer la création ', resume: 'Reprendre ', finish: 'Préparer mes 3 parties ', check: 'Vérifier ' })[mode]), element('span', ({ generate: '✦', resume: '↻', finish: '♫', check: '✓' })[mode]));
+  $('generate').replaceChildren(document.createTextNode(({ generate: 'Lancer la partie 1 ', continue: `Lancer la ${nextPartLabel().toLowerCase()} `, resume: 'Reprendre ', finish: 'Refaire mes vidéos ', check: 'Vérifier ' })[mode]), element('span', ({ generate: '✦', continue: '✦', resume: '↻', finish: '♫', check: '✓' })[mode]));
   const active = dashboard.jobs.some(job => ['queued', 'running'].includes(job.status));
   const offline = shared && !studioClient.online;
   $('generate').disabled = !connected() || busy || active || offline;
@@ -126,6 +131,23 @@ function updateForm() {
   else if (/^(Connecte-toi|Une création|Le Mac)/.test($('form-message').textContent)) $('form-message').textContent = '';
 }
 document.querySelectorAll('input[name=style]').forEach(input => input.addEventListener('change', updateForm));
+$('subtitles').addEventListener('change', updateForm);
+$('story').addEventListener('change', updateForm);
+// Next part of the selected series, from its latest delivery.
+function nextPartLabel() {
+  const entry = dashboard.library.find(item => item.story === $('story').value);
+  return entry?.nextPart ? `Partie ${entry.nextPart}` : 'Partie suivante';
+}
+// "Continuer" only lists V4 series; other modes list every story.
+function fillStories() {
+  const wanted = mode === 'continue' ? dashboard.stories.filter(item => item.style) : dashboard.stories;
+  const current = $('story').value;
+  if ($('story').dataset.mode === mode && $('story').options.length === wanted.length + 1) return;
+  $('story').dataset.mode = mode;
+  $('story').replaceChildren(Object.assign(element('option', mode === 'continue' ? 'Choisir une série…' : 'Choisir une histoire…'), { value: '' }));
+  for (const item of wanted) $('story').append(Object.assign(element('option', `${STYLE_EMOJI[item.style] ? STYLE_EMOJI[item.style] + ' ' : ''}${item.title} · ${item.id.slice(6, 16)}`), { value: item.id }));
+  if (wanted.some(item => item.id === current)) $('story').value = current;
+}
 $('music').addEventListener('change', updateForm);
 $('volume').addEventListener('input', () => { $('volume-value').textContent = `${$('volume').value} %`; });
 $('idea').addEventListener('input', () => {
@@ -136,10 +158,8 @@ $('idea').addEventListener('input', () => {
 try { $('idea').value = sessionStorage.getItem('workflowai-idea') || ''; $('idea-count').textContent = `${$('idea').value.length} / ${IDEA_MAX}`; } catch {}
 
 function fillChoices() {
-  const story = $('story').value, music = selectedMusic || $('music').value;
-  $('story').replaceChildren(Object.assign(element('option', 'Choisir une histoire…'), { value: '' }));
-  for (const item of dashboard.stories) $('story').append(Object.assign(element('option', `${STYLE_EMOJI[item.style] ? STYLE_EMOJI[item.style] + ' ' : ''}${item.title} · ${item.id.slice(6, 16)}`), { value: item.id }));
-  if (dashboard.stories.some(item => item.id === story)) $('story').value = story;
+  const music = selectedMusic || $('music').value;
+  delete $('story').dataset.mode; fillStories();
   $('music').replaceChildren(Object.assign(element('option', 'Sans musique, dialogues seuls'), { value: '' }));
   for (const name of dashboard.music) $('music').append(Object.assign(element('option', name), { value: name }));
   if (dashboard.music.includes(music)) { $('music').value = music; selectedMusic = ''; }
@@ -148,9 +168,9 @@ function fillChoices() {
 // ---------- Vidéos ----------
 function safeFileURL(url) {
   if (shared) {
-    try { const resource = new URL(url); return resource.origin === new URL(config.apiBase || location.origin).origin && /^\/media\/[a-f0-9]{24}\/(full|part-[123])\.mp4$/.test(resource.pathname); } catch { return false; }
+    try { const resource = new URL(url); return resource.origin === new URL(config.apiBase || location.origin).origin && /^\/media\/[a-f0-9]{24}\/(full|part-[1-9][0-9]?)\.mp4$/.test(resource.pathname); } catch { return false; }
   }
-  if (local) return /^\/media\/[a-f0-9]{24}\/(full|part-[123])\.mp4$/.test(url || '');
+  if (local) return /^\/media\/[a-f0-9]{24}\/(full|part-[1-9][0-9]?)\.mp4$/.test(url || '');
   return typeof url === 'string' && url.startsWith(`https://github.com/${config.owner}/${config.repository}/releases/download/`);
 }
 function streamURL(file) {
@@ -233,6 +253,8 @@ function renderSheet(entry) {
     fragment.append(box);
   }
   $('sheet-parts').replaceChildren(fragment);
+  $('sheet-continue').hidden = !entry.nextPart;
+  $('sheet-continue').textContent = `✦ Continuer : partie ${entry.nextPart}`;
   const github = entry.releaseUrl?.startsWith(`https://github.com/${config.owner}/${config.repository}/releases/`);
   $('sheet-github').hidden = !github; if (github) $('sheet-github').href = entry.releaseUrl;
 }
@@ -240,6 +262,9 @@ function openSheet(entry) { renderSheet(entry); if (!$('story-dialog').open) $('
 $('close-sheet').addEventListener('click', () => $('story-dialog').close());
 $('story-dialog').addEventListener('close', () => { openEntry = null; });
 for (const dialog of [$('story-dialog'), $('player-dialog')]) dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+$('sheet-continue').addEventListener('click', () => {
+  const story = openEntry?.story; $('story-dialog').close(); setMode('continue'); $('story').value = story || ''; updateForm(); tab('create');
+});
 $('sheet-music').addEventListener('click', () => {
   const story = openEntry?.story; $('story-dialog').close(); setMode('finish'); $('story').value = story || ''; tab('create'); $('music').focus();
 });
@@ -254,7 +279,7 @@ function renderLibrary() {
     if (entry.cover) card.querySelector('img').src = entry.cover;
     card.querySelector('.cover-style').textContent = STYLE_EMOJI[entry.style] || '';
     card.querySelector('.video-title').textContent = entry.title;
-    card.querySelector('.video-meta').textContent = `3 parties · ${duration(entry.duration)} · ${new Intl.DateTimeFormat('fr', { day: 'numeric', month: 'short' }).format(new Date(entry.createdAt))}`;
+    card.querySelector('.video-meta').textContent = `${entry.parts || 3} partie${(entry.parts || 3) > 1 ? 's' : ''} · ${duration(entry.duration)} · ${new Intl.DateTimeFormat('fr', { day: 'numeric', month: 'short' }).format(new Date(entry.createdAt))}`;
     card.setAttribute('aria-label', `${entry.title}, ouvrir`);
     card.addEventListener('click', () => openSheet(entry));
     fragment.append(card);
@@ -262,7 +287,7 @@ function renderLibrary() {
   $('library').replaceChildren(fragment); $('library-empty').hidden = entries.length > 0;
   $('library-count').textContent = dashboard.library.length;
   $('empty-title').textContent = search ? 'Aucun résultat' : 'Pas encore de vidéo';
-  $('empty-description').textContent = search ? 'Aucune histoire ne correspond à ta recherche.' : connected() ? 'Chaque histoire terminée arrive ici automatiquement, avec ses 3 parties.' : 'Connecte-toi pour retrouver tes vidéos.';
+  $('empty-description').textContent = search ? 'Aucune histoire ne correspond à ta recherche.' : connected() ? 'Chaque partie terminée arrive ici automatiquement.' : 'Connecte-toi pour retrouver tes vidéos.';
   if (openEntry) { const fresh = dashboard.library.find(e => e.id === openEntry.id); if (fresh) renderSheet(fresh); }
 }
 $('search').addEventListener('input', renderLibrary);
@@ -271,6 +296,7 @@ $('search').addEventListener('input', renderLibrary);
 function jobActions(job) {
   const actions = element('div', undefined, 'job-actions');
   if (job.status === 'complete' && job.mode !== 'check') actions.append(button('Voir mes vidéos →', 'link-button', () => { $('search').value = ''; renderLibrary(); tab('library'); }));
+  if (job.status === 'complete' && job.style && job.story && ['generate', 'continue'].includes(job.mode)) actions.append(button('✦ Continuer : partie suivante →', 'link-button', () => { setMode('continue'); $('story').value = job.story; updateForm(); tab('create'); }));
   if (job.status === 'failed' && job.story) actions.append(button('Reprendre là où ça s’est arrêté →', 'link-button', () => { setMode('resume'); $('story').value = job.story; tab('create'); }));
   if (job.runUrl?.startsWith(`https://github.com/${config.owner}/${config.repository}/actions/runs/`)) {
     const a = element('a', 'Journal ↗', 'link-button'); a.href = job.runUrl; a.target = '_blank'; a.rel = 'noopener'; actions.append(a);
@@ -350,7 +376,7 @@ async function refresh() {
         remoteRuns = result.workflow_runs; runsUpdatedAt = Date.now();
       }
       for (const run of remoteRuns) {
-        const match = run.display_title.match(/^(generate|resume|finish|check)\s*·\s*([a-zA-Z0-9-]{6,100})$/);
+        const match = run.display_title.match(/^(generate|continue|resume|finish|check)\s*·\s*([a-zA-Z0-9-]{6,100})$/);
         if (!match) continue;
         const [, runMode, id] = match;
         let job = next.jobs.find(item => item.id === id);
@@ -416,7 +442,7 @@ $('generate-form').addEventListener('submit', async event => {
   if (idea.length > IDEA_MAX) { $('form-message').textContent = `Ton idée dépasse ${IDEA_MAX} caractères.`; return; }
   busy = true; updateForm(); $('form-message').textContent = '';
   const input = { mode, story: mode === 'generate' ? '' : $('story').value, music: mode === 'check' ? '' : $('music').value, musicVolume: Number($('volume').value) / 100, creditLimit: Number($('budget').value) || 350,
-    ...(mode === 'generate' ? { style: selectedStyle(), idea } : {}) };
+    subtitles: $('subtitles').checked, ...(mode === 'generate' ? { style: selectedStyle(), idea } : {}) };
   try {
     let job;
     if (local) job = await request('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
@@ -424,7 +450,7 @@ $('generate-form').addEventListener('submit', async event => {
       const id = crypto.randomUUID();
       await request(`${repo()}/actions/workflows/${config.workflow}/dispatches`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: config.ref, inputs: {
         mode: input.mode, story: input.story, music: input.music, music_volume: String(input.musicVolume), credit_limit: String(input.creditLimit), request_id: id,
-        style: input.style || 'fruits', idea: input.idea || '' } }) });
+        style: input.style || 'fruits', idea: input.idea || '', subtitles: input.subtitles ? 'on' : 'off' } }) });
       job = { id, ...input, title: input.mode === 'generate' ? 'Nouvelle histoire' : dashboard.stories.find(s => s.id === input.story)?.title, status: 'queued', stage: 'story', percent: 0, createdAt: new Date().toISOString() };
       pending.unshift(job); store('workflowai-pending', pending);
     }
