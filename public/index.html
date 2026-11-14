@@ -1,21 +1,177 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0e110d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; img-src 'self' data: blob:; media-src 'self' blob: https://release-assets.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; base-uri 'none'; object-src 'none'">
-<title>WorkflowAI — Mon studio vidéo</title><link rel="stylesheet" href="style.css"><script type="module" src="app.js?v=persistent-access-3"></script>
+<title>Studio Mini-Drama</title>
+<link rel="stylesheet" href="style.css?v=studio-v4">
+<script type="module" src="app.js?v=studio-v4"></script>
 </head>
 <body>
-<header><a class="brand" href="./"><span class="mark">W</span>WorkflowAI <span class="studio">MON STUDIO</span></a><div class="header-status"><span id="mac-status" class="badge">Connexion…</span><button id="refresh" type="button" class="icon-button" aria-label="Actualiser">↻</button><button id="open-auth" type="button" class="text-button" hidden>Connexion</button></div></header>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="Studio Mini-Drama, accueil"><span class="mark" aria-hidden="true">✦</span><span>Studio <b>Mini-Drama</b></span></a>
+  <div class="top-actions">
+    <span id="mac-status" class="status-pill" role="status"><i aria-hidden="true"></i><span>Connexion…</span></span>
+    <button id="open-auth" type="button" class="ghost-button" hidden>Accès</button>
+  </div>
+</header>
+
 <main>
-<section id="auth" class="auth-panel" hidden><div><span class="eyebrow">TON ESPACE PRIVÉ</span><h2>Retrouve tes vidéos sur tous tes appareils.</h2><p>Connecte ton compte pour accéder à ta bibliothèque, lancer une histoire et importer une musique.</p></div><form id="auth-form"><label for="token">Token GitHub</label><div class="inline"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" required><button class="primary" id="connect" type="submit">Connecter</button></div><details><summary>Quel token utiliser ?</summary><p>Compte <strong>mamoune123</strong>, dépôt privé <strong>workFlowAI</strong> : Actions en lecture/écriture et Contents en lecture/écriture pour l’import musical. Le token reste en mémoire dans cet onglet. Il n’est pas enregistré dans le navigateur.</p></details><p id="auth-message" role="status"></p><button id="logout" type="button" class="text-button" hidden>Se déconnecter et oublier cet appareil</button></form></section>
-<div class="intro"><div><span class="eyebrow">TON STUDIO, PARTOUT AVEC TOI</span><h1>Crée. Retrouve.<br><em>Partage ton histoire.</em></h1></div><p>Une histoire, trois parties.<br>Des sous-titres, ta musique et tous tes liens au même endroit.</p></div>
-<nav class="tabs" aria-label="Navigation du studio"><button class="tab active" data-tab="library" type="button">Mes vidéos <span id="library-count">0</span></button><button class="tab" data-tab="create" type="button">Créer une histoire</button><button class="tab" data-tab="activity" type="button">Suivi <span id="active-count">0</span></button></nav>
-<section id="view-library" class="view"><div class="section-heading"><div><h2>Ta bibliothèque</h2><p>Les liens de tes vidéos restent disponibles après la génération.</p></div><input id="search" type="search" placeholder="Rechercher une histoire…" aria-label="Rechercher une histoire"></div><div id="library" class="library-grid"></div><div id="library-empty" class="empty"><span class="empty-icon">▶</span><h3>Chaque histoire trouvera sa place ici.</h3><p id="empty-description">Connecte ton compte pour retrouver les vidéos déjà générées.</p><button class="secondary" data-go="create" type="button">Créer une histoire ↗</button></div></section>
-<section id="view-create" class="view" hidden><div class="create-grid"><form id="generate-form" class="panel controls"><div class="panel-title"><span class="number">01</span><h2>Prépare ton histoire</h2></div><label for="mode">Que souhaites-tu faire ?</label><select id="mode"><option value="generate">Créer une nouvelle histoire</option><option value="resume">Reprendre une histoire en cours</option><option value="finish">Ajouter les sous-titres / changer la musique</option><option value="check">Vérifier sans générer</option></select><div id="story-field" hidden><label for="story">Choisis l’histoire</label><select id="story"><option value="">Choisir…</option></select></div><div class="label-row"><label for="music">Musique de fond <span>facultative</span></label><button id="import-button" class="text-button" type="button">＋ Importer</button></div><select id="music"><option value="">Sans musique — dialogues seuls</option></select><input id="music-file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" hidden><p class="hint">Importe un morceau depuis ton téléphone ou choisis dans ta bibliothèque. MP3, WAV, M4A, AAC, FLAC, OGG · 20 Mo max.</p><div id="upload-progress" hidden><progress id="upload-bar" max="100" value="0"></progress><p id="upload-message" role="status"></p></div><div class="label-row"><label for="volume">Volume musical</label><output id="volume-value">15 %</output></div><input id="volume" type="range" min="0" max="50" value="15"><p class="hint">Les dialogues sont conservés. La musique baisse pendant les voix.</p><details id="advanced"><summary>Réglages de génération</summary><div id="budget-field"><label for="budget">Plafond de crédits Flow</label><input id="budget" type="number" min="15" max="10000" step="15" value="300"><p class="hint">Pour les nouvelles vidéos uniquement. La reprise conserve les scènes déjà créées.</p></div></details><div class="order"><span>Sous-titres</span><span>→</span><span>Musique</span><span>→</span><span>3 parties</span></div><button id="generate" class="primary wide" type="submit">Générer mon histoire <span>↗</span></button><p id="form-message" role="status"></p></form><aside class="create-aside"><span class="eyebrow">ON S’OCCUPE DE LA SUITE</span><h2>De l’idée aux trois vidéos.</h2><ol><li><span>01</span><div><h3>Une histoire et ses personnages</h3><p>Les images sont créées dans une seule discussion pour garder la continuité.</p></div></li><li><span>02</span><div><h3>Chaque scène prend vie</h3><p>Les vidéos utilisent leur image de référence. Le suivi compte les scènes réellement enregistrées.</p></div></li><li><span>03</span><div><h3>Ta livraison, prête à récupérer</h3><p>Sous-titres, musique puis trois parties : 6 / 6 / 5 scènes pour une histoire de 17 scènes.</p></div></li></ol><p class="runtime-note">Ton Mac exécute le travail avec Chrome ouvert. Une fois la demande envoyée, tu peux fermer ton téléphone et revenir plus tard.</p></aside></div></section>
-<section id="view-activity" class="view" hidden><div class="section-heading"><div><h2>Où en est le traitement ?</h2><p id="sync-status">Les étapes et les compteurs se mettent à jour automatiquement.</p></div></div><div id="activity"></div><div id="activity-empty" class="empty"><span class="empty-icon">◷</span><h3>Aucun traitement en cours.</h3><p>Tes prochaines générations et leur avancement apparaîtront ici.</p></div></section>
-<p id="global-message" class="notice" role="status"></p>
-</main><footer><span>WORKFLOWAI STUDIO</span><span>Histoire → Images → Vidéos → Sous-titres → Musique → 3 parties</span></footer>
-<dialog id="player-dialog"><div class="dialog-heading"><h2 id="player-title">Aperçu</h2><button id="close-player" class="icon-button" type="button" aria-label="Fermer l’aperçu">×</button></div><p id="player-message" role="status"></p><video id="player" controls playsinline preload="metadata"></video></dialog>
-<template id="library-card"><article class="video-card"><div class="card-top"><img class="cover" alt=""><div class="card-summary"><span class="eyebrow">HISTOIRE TERMINÉE</span><h3></h3><p class="card-meta"></p><p class="card-music"></p></div></div><div class="card-files"></div><div class="card-footer"><button type="button" class="text-button remix">Changer la musique</button><button type="button" class="text-button copy-link">Copier le lien ↗</button></div></article></template>
-</body></html>
+  <section id="auth" class="auth-card" hidden>
+    <span class="eyebrow">Ton espace privé</span>
+    <h1>Bienvenue dans ton studio</h1>
+    <p class="muted">Entre ton code d’accès une seule fois sur cet appareil.</p>
+    <form id="auth-form" class="stack">
+      <label for="token" class="field-label">Code d’accès</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Colle ton code" required>
+      <button class="primary-button" id="connect" type="submit">Se connecter</button>
+      <details class="help"><summary>Quel code utiliser ?</summary><p id="auth-help">Le code du studio est fourni par le propriétaire du Mac. Il reste mémorisé sur cet appareil jusqu’à une déconnexion.</p></details>
+      <p id="auth-message" class="form-message" role="status"></p>
+      <button id="logout" type="button" class="link-button danger" hidden>Se déconnecter et oublier cet appareil</button>
+    </form>
+  </section>
+
+  <!-- CRÉER -->
+  <section id="view-create" class="view" aria-labelledby="create-title">
+    <div class="view-head">
+      <h1 id="create-title">Créer</h1>
+      <div class="segmented" role="tablist" aria-label="Type de création">
+        <button type="button" role="tab" class="seg active" data-mode="generate" aria-selected="true">Nouvelle</button>
+        <button type="button" role="tab" class="seg" data-mode="resume" aria-selected="false">Reprendre</button>
+        <button type="button" role="tab" class="seg" data-mode="finish" aria-selected="false">Musique</button>
+      </div>
+    </div>
+
+    <form id="generate-form" class="stack-lg" novalidate>
+      <div id="new-fields" class="stack-lg">
+        <fieldset class="card">
+          <legend class="card-title"><span class="step">1</span>Style des personnages</legend>
+          <div class="style-grid" id="style-grid">
+            <label class="style-option"><input type="radio" name="style" value="fruits" checked><span class="style-emoji" aria-hidden="true">🍓</span><span class="style-name">Fruits</span><span class="style-hint">Tête de fruit brillant</span><span class="tag">Recommandé</span></label>
+            <label class="style-option"><input type="radio" name="style" value="ongles"><span class="style-emoji" aria-hidden="true">💅</span><span class="style-name">Ongles</span><span class="style-hint">Ongle verni, nail art</span></label>
+            <label class="style-option"><input type="radio" name="style" value="objets"><span class="style-emoji" aria-hidden="true">🫖</span><span class="style-name">Objets</span><span class="style-hint">Tasse, ampoule, réveil…</span></label>
+            <label class="style-option"><input type="radio" name="style" value="pierres"><span class="style-emoji" aria-hidden="true">💎</span><span class="style-name">Pierres</span><span class="style-hint">Gemme taillée</span></label>
+          </div>
+        </fieldset>
+
+        <div class="card">
+          <div class="card-title-row"><label for="idea" class="card-title"><span class="step">2</span>Ton idée <span class="optional">facultatif</span></label><span id="idea-count" class="counter">0 / 1500</span></div>
+          <textarea id="idea" rows="4" maxlength="1500" placeholder="Ex. : un père vend sa camionnette pour payer la place de son fils au club, mais le coach la revend quand même…"></textarea>
+          <p class="hint">Quelques lignes suffisent, même en vrac. <strong>Laisse vide</strong> et Claude invente une histoire qui accroche.</p>
+        </div>
+      </div>
+
+      <div id="story-field" class="card" hidden>
+        <label for="story" class="card-title"><span class="step">1</span><span id="story-label">Quelle histoire ?</span></label>
+        <select id="story"><option value="">Choisir une histoire…</option></select>
+        <p id="story-hint" class="hint"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row">
+          <label for="music" class="card-title"><span class="step" id="music-step">3</span>Musique <span class="optional" id="music-optional">facultatif</span></label>
+          <button id="import-button" class="link-button" type="button">＋ Importer</button>
+        </div>
+        <select id="music"><option value="">Sans musique, dialogues seuls</option></select>
+        <input id="music-file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg" hidden>
+        <div id="upload-progress" class="upload" hidden><progress id="upload-bar" max="100" value="0"></progress><p id="upload-message" class="hint" role="status"></p></div>
+        <div id="volume-field" class="volume" hidden>
+          <div class="card-title-row"><label for="volume" class="field-label">Volume de la musique</label><output id="volume-value">15 %</output></div>
+          <input id="volume" type="range" min="0" max="50" value="15">
+          <p class="hint">Les voix restent au premier plan : la musique baisse quand ça parle.</p>
+        </div>
+      </div>
+
+      <details class="card advanced" id="advanced">
+        <summary>Réglages avancés</summary>
+        <div id="budget-field" class="stack">
+          <label for="budget" class="field-label">Plafond de crédits Flow</label>
+          <input id="budget" type="number" inputmode="numeric" min="15" max="10000" step="15" value="350">
+          <p class="hint">Une histoire de 17 clips coûte environ 255 crédits. Les clips refusés par la modération sont remboursés par Flow mais comptent dans ce plafond.</p>
+        </div>
+        <button id="check-button" type="button" class="link-button">Vérifier une histoire sans rien générer →</button>
+      </details>
+
+      <div class="launch">
+        <p id="summary" class="summary">17 clips de 10 s · 3 parties · ≈ 255 crédits · ≈ 1 h</p>
+        <button id="generate" class="primary-button big" type="submit">Lancer la création <span aria-hidden="true">✦</span></button>
+        <p id="form-message" class="form-message" role="status"></p>
+      </div>
+    </form>
+  </section>
+
+  <!-- SUIVI -->
+  <section id="view-activity" class="view" hidden aria-labelledby="activity-title">
+    <div class="view-head">
+      <h1 id="activity-title">Suivi</h1>
+      <p id="sync-status" class="muted small">Mise à jour automatique.</p>
+    </div>
+    <div id="current-job"></div>
+    <h2 id="history-title" class="section-title" hidden>Historique</h2>
+    <div id="activity" class="history"></div>
+    <div id="activity-empty" class="empty">
+      <span class="empty-icon" aria-hidden="true">◷</span>
+      <h2>Rien en cours</h2>
+      <p class="muted">Lance une histoire : tu suivras ici chaque étape, même téléphone fermé entre-temps.</p>
+      <button class="secondary-button" data-go="create" type="button">Créer une histoire</button>
+    </div>
+  </section>
+
+  <!-- VIDÉOS -->
+  <section id="view-library" class="view" hidden aria-labelledby="library-title">
+    <div class="view-head">
+      <h1 id="library-title">Mes vidéos</h1>
+      <input id="search" type="search" placeholder="Rechercher…" aria-label="Rechercher une histoire">
+    </div>
+    <div id="library" class="library-grid"></div>
+    <div id="library-empty" class="empty">
+      <span class="empty-icon" aria-hidden="true">▶</span>
+      <h2 id="empty-title">Pas encore de vidéo</h2>
+      <p id="empty-description" class="muted">Chaque histoire terminée arrive ici automatiquement, avec ses 3 parties.</p>
+      <button class="secondary-button" data-go="create" type="button">Créer une histoire</button>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<p id="global-message" hidden></p>
+
+<nav class="bottom-nav" aria-label="Navigation">
+  <button class="nav-item active" data-tab="create" type="button"><span class="nav-icon" aria-hidden="true">✦</span><span>Créer</span></button>
+  <button class="nav-item" data-tab="activity" type="button"><span class="nav-icon" aria-hidden="true">◷</span><span>Suivi</span><span id="active-count" class="nav-badge" hidden>0</span></button>
+  <button class="nav-item" data-tab="library" type="button"><span class="nav-icon" aria-hidden="true">▶</span><span>Vidéos</span><span id="library-count" class="nav-count">0</span></button>
+</nav>
+
+<template id="library-card">
+  <button type="button" class="video-card">
+    <span class="cover"><img alt="" loading="lazy"><span class="cover-fallback" aria-hidden="true">▶</span><span class="cover-style"></span></span>
+    <span class="video-info"><strong class="video-title"></strong><span class="video-meta"></span></span>
+  </button>
+</template>
+
+<dialog id="story-dialog" class="sheet" aria-labelledby="sheet-title">
+  <div class="sheet-head">
+    <div><span class="eyebrow" id="sheet-eyebrow"></span><h2 id="sheet-title"></h2></div>
+    <button id="close-sheet" class="icon-button" type="button" aria-label="Fermer">✕</button>
+  </div>
+  <p id="sheet-paradox" class="paradox"></p>
+  <div id="sheet-parts" class="parts"></div>
+  <div class="sheet-actions">
+    <button id="sheet-music" class="secondary-button" type="button">♫ Changer la musique</button>
+    <button id="sheet-link" class="link-button" type="button">Copier le lien</button>
+    <a id="sheet-github" class="link-button" target="_blank" rel="noopener" hidden>Ouvrir sur GitHub ↗</a>
+  </div>
+</dialog>
+
+<dialog id="player-dialog" class="player" aria-labelledby="player-title">
+  <div class="sheet-head"><h2 id="player-title">Aperçu</h2><button id="close-player" class="icon-button" type="button" aria-label="Fermer l’aperçu">✕</button></div>
+  <p id="player-message" class="hint" role="status"></p>
+  <video id="player" controls playsinline preload="metadata"></video>
+</dialog>
+</body>
+</html>
