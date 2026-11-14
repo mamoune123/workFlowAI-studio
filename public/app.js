@@ -12,6 +12,7 @@ let config, local = false, shared = false, token = '', studioClient;
 let dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
 let mode = 'generate', activeTab = 'create', firstLoad = true;
 let lastError = '';
+const thumbs = new Map(); // video id → cover thumbnails, kept between light refreshes
 let timer, busy = false, refreshing = false, selectedMusic = '', pendingImport, toastTimer, openEntry = null;
 const getStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
@@ -385,7 +386,18 @@ async function refresh() {
   refreshing = true;
   try {
     let next;
-    if (local) next = await request('/api/dashboard');
+    if (local) {
+      // Shared relay: poll the light answer; fetch the full one (with cover
+      // thumbnails) only when a video is new to this page.
+      next = await request(shared && thumbs.size ? '/api/dashboard?lite=1' : '/api/dashboard');
+      if (shared && thumbs.size && (next.library || []).some(entry => !thumbs.has(entry.id))) next = await request('/api/dashboard');
+      for (const entry of next.library || []) {
+        if (entry.cover !== undefined || !thumbs.has(entry.id)) thumbs.set(entry.id, { cover: entry.cover, parts: Object.fromEntries((entry.social?.parts || []).map(p => [p.part, p.cover])) });
+        const saved = thumbs.get(entry.id);
+        entry.cover ??= saved.cover;
+        for (const part of entry.social?.parts || []) part.cover ??= saved.parts[part.part];
+      }
+    }
     else {
       const response = await request(`${repo()}/contents/catalog.json?ref=${dataRef()}`);
       next = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(response.content.replace(/\s/g, '')), char => char.charCodeAt(0))));
