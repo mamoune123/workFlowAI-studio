@@ -68,9 +68,22 @@ export class StudioClient {
         ? 'Le serveur se reconnecte. Ton accès est conservé ; la page réessaie automatiquement.'
         : 'Connexion interrompue. La demande n’a pas été renvoyée automatiquement : vérifie son état dans Suivi avant de réessayer.');
     }
+    let data = null;
+    if (response.status !== 204) {
+      try { data = await response.json(); }
+      catch {
+        // The free relay sometimes cuts a response short: that is a connection
+        // problem, never an empty answer (an empty dashboard crashed the page).
+        if (response.ok) {
+          this.online = false;
+          if (retry && safeRetry) return this.raw(resource, options, credential, false);
+          throw new StudioConnectionError('Réponse incomplète du Mac. Nouvel essai automatique.');
+        }
+        data = {};
+      }
+    }
     this.online = true;
     this.discoveryCount = 0;
-    const data = response.status === 204 ? null : await response.json().catch(() => ({}));
     if (response.status === 401) throw new StudioAuthError(data?.error || 'Cet accès a été déconnecté. Saisis le code du studio.');
     if (!response.ok) throw new Error(data?.error || `Le studio a répondu ${response.status}.`);
     return data;

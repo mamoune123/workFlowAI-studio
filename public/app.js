@@ -1,4 +1,4 @@
-import { StudioClient, StudioAuthError } from './studio-client.js?v=persistent-access-3';
+import { StudioClient, StudioAuthError, StudioConnectionError } from './studio-client.js?v=studio-v7';
 
 const $ = id => document.getElementById(id);
 const STAGES = ['story', 'images', 'videos', 'assembly', 'subtitles', 'music', 'split', 'done'];
@@ -11,6 +11,7 @@ const MODE_LABEL = { generate: 'Nouvelle histoire · partie 1', continue: 'Parti
 let config, local = false, shared = false, token = '', studioClient;
 let dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
 let mode = 'generate', activeTab = 'create', firstLoad = true;
+let lastError = '';
 let timer, busy = false, refreshing = false, selectedMusic = '', pendingImport, toastTimer, openEntry = null;
 const getStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
@@ -242,6 +243,9 @@ function renderSheet(entry) {
     if (stamp) info.append(element('span', ` · ↓ téléchargée`, 'done-mark'));
     head.append(info); box.append(head);
     const actions = element('div', undefined, 'part-buttons');
+    // Through the shared relay, videos play from GitHub once published (≈ 1 min
+    // after delivery); before that the relay is slow, so say so.
+    if (shared && safeFileURL(file.url) && !streamURL(file)) box.append(element('p', '⏳ Mise en ligne en cours : lecture rapide dans une minute environ.', 'hint'));
     if (safeFileURL(file.url)) {
       actions.append(button('▷ Voir', 'play', () => play(entry, file)));
       const save = button('↓ Télécharger', '', () => download(entry, file, save)); actions.append(save);
@@ -406,6 +410,8 @@ async function refresh() {
     }
     for (const [name, at] of recentImports) { if (next.music.includes(name) || Date.now() - at > 30000) recentImports.delete(name); else next.music.push(name); }
     pending = pending.filter(job => !next.jobs.some(item => item.id === job.id)); store('workflowai-pending', pending);
+    // Never trust the shape of a remote answer: missing lists become empty ones.
+    for (const key of ['music', 'stories', 'jobs', 'library', 'imports']) if (!Array.isArray(next?.[key])) next[key] = [];
     next.jobs = [...pending, ...next.jobs]; dashboard = next;
     if (pendingImport) {
       const imported = dashboard.imports.find(item => item.id === pendingImport.id);
@@ -423,7 +429,12 @@ async function refresh() {
       if (linked) { tab('library'); openSheet(linked); }
       else if (dashboard.jobs.some(job => ['queued', 'running'].includes(job.status))) tab('activity');
     }
-  } catch (error) { toast(error.message); render(); }
+  } catch (error) {
+    // Connection hiccups show in the Mac status pill; only real errors pop up, once.
+    const hiccup = error instanceof StudioConnectionError || error instanceof SyntaxError || error instanceof TypeError && /fetch|network|load/i.test(error.message);
+    if (!hiccup && error.message !== lastError) toast(error.message);
+    lastError = error.message; render();
+  }
   finally { refreshing = false; clearTimeout(timer); timer = setTimeout(refresh, shared && !studioClient.online ? 10000 : local ? 3000 : 10000); }
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
