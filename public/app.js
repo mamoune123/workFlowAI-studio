@@ -7,7 +7,6 @@ const STAGE_DOING = ['Claude écrit le script', 'Création des images', 'Animati
 const STATUS = { queued: ['En attente', 'queued'], running: ['En cours', 'running'], complete: ['Terminé', 'complete'], failed: ['Interrompu', 'failed'] };
 const STYLE_EMOJI = { fruits: '🍓', ongles: '💅', objets: '🫖', pierres: '💎' };
 const MODE_LABEL = { generate: 'Nouvelle histoire · partie 1', continue: 'Partie suivante', resume: 'Reprise', finish: 'Musique / finition', check: 'Vérification' };
-const IDEA_MAX = 1500;
 
 let config, local = false, shared = false, token = '', studioClient;
 let dashboard = { music: [], stories: [], jobs: [], library: [], imports: [] };
@@ -152,10 +151,10 @@ $('music').addEventListener('change', updateForm);
 $('volume').addEventListener('input', () => { $('volume-value').textContent = `${$('volume').value} %`; });
 $('idea').addEventListener('input', () => {
   const length = $('idea').value.length;
-  $('idea-count').textContent = `${length} / ${IDEA_MAX}`;
+  $('idea-count').textContent = length ? `${length} caractères` : '';
   try { sessionStorage.setItem('workflowai-idea', $('idea').value); } catch {}
 });
-try { $('idea').value = sessionStorage.getItem('workflowai-idea') || ''; $('idea-count').textContent = `${$('idea').value.length} / ${IDEA_MAX}`; } catch {}
+try { $('idea').value = sessionStorage.getItem('workflowai-idea') || ''; $('idea-count').textContent = $('idea').value.length ? `${$('idea').value.length} caractères` : ''; } catch {}
 
 function fillChoices() {
   const music = selectedMusic || $('music').value;
@@ -439,7 +438,6 @@ $('generate-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (mode !== 'generate' && !$('story').value) { $('form-message').textContent = 'Choisis une histoire.'; $('story').focus(); return; }
   const idea = $('idea').value.trim();
-  if (idea.length > IDEA_MAX) { $('form-message').textContent = `Ton idée dépasse ${IDEA_MAX} caractères.`; return; }
   busy = true; updateForm(); $('form-message').textContent = '';
   const input = { mode, story: mode === 'generate' ? '' : $('story').value, music: mode === 'check' ? '' : $('music').value, musicVolume: Number($('volume').value) / 100, creditLimit: Number($('budget').value) || 350,
     subtitles: $('subtitles').checked, ...(mode === 'generate' ? { style: selectedStyle(), idea } : {}) };
@@ -455,7 +453,7 @@ $('generate-form').addEventListener('submit', async event => {
       pending.unshift(job); store('workflowai-pending', pending);
     }
     dashboard.jobs.unshift(job);
-    if (mode === 'generate') { $('idea').value = ''; $('idea-count').textContent = `0 / ${IDEA_MAX}`; try { sessionStorage.removeItem('workflowai-idea'); } catch {} }
+    if (mode === 'generate') { $('idea').value = ''; $('idea-count').textContent = ''; try { sessionStorage.removeItem('workflowai-idea'); } catch {} }
     renderActivity(); tab('activity'); toast('C’est parti ✦ Le Mac s’en occupe.'); await refresh();
   } catch (error) { $('form-message').textContent = error.message; }
   finally { busy = false; updateForm(); }
