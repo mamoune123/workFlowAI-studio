@@ -116,6 +116,16 @@ progress::-webkit-progress-value { background: var(--gradient); border-radius: 9
 progress::-moz-progress-bar { background: var(--gradient); border-radius: 99px; }
 
 .toggle-card { padding: 14px 16px; }
+fieldset#model-field legend { float: left; width: 100%; }
+.model-grid { clear: both; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.model-option { position: relative; display: grid; gap: 1px; padding: 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface-2); cursor: pointer; }
+.model-option input { position: absolute; opacity: 0; pointer-events: none; }
+.model-option:has(input:checked) { border-color: var(--accent); background: linear-gradient(180deg, rgba(255, 92, 138, .14), rgba(255, 154, 92, .04)); }
+.model-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.model-name { font-weight: 650; font-size: 14px; }
+.model-cost { font-size: 13px; color: var(--text); }
+.model-hint { font-size: 12px; color: var(--muted); }
+.part-buttons .cover-button { grid-column: 1 / -1; }
 .toggle { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; }
 html, body { overflow-x: hidden; }
 .toggle-text { display: grid; gap: 2px; }

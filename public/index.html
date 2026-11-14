@@ -9,8 +9,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com https://release-assets.githubusercontent.com https://objects.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; img-src 'self' data: blob:; media-src 'self' blob: https://release-assets.githubusercontent.com https://*.trycloudflare.com https://*.lhr.life; base-uri 'none'; object-src 'none'">
 <title>Studio Mini-Drama</title>
-<link rel="stylesheet" href="style.css?v=studio-v5">
-<script type="module" src="app.js?v=studio-v5b"></script>
+<link rel="stylesheet" href="style.css?v=studio-v6">
+<script type="module" src="app.js?v=studio-v6"></script>
 </head>
 <body>
 <header class="topbar">
@@ -87,6 +87,14 @@
           <p class="hint">Les voix restent au premier plan : la musique baisse quand ça parle.</p>
         </div>
       </div>
+
+      <fieldset id="model-field" class="card">
+        <legend class="card-title">Modèle vidéo</legend>
+        <div class="model-grid">
+          <label class="model-option"><input type="radio" name="video-model" value="omni-1.1" checked><span class="model-name">Omni 1.1 Flash</span><span class="model-cost">15 crédits / clip</span><span class="model-hint">Jusqu’au 5 déc.</span></label>
+          <label class="model-option"><input type="radio" name="video-model" value="omni-1.2"><span class="model-name">Omni 1.2 Flash</span><span class="model-cost">30 crédits / clip</span><span class="model-hint">Plus récent</span></label>
+        </div>
+      </fieldset>
 
       <div id="subtitles-field" class="card toggle-card">
         <label class="toggle" for="subtitles">

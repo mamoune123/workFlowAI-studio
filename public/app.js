@@ -104,6 +104,7 @@ function updateForm() {
   $('volume-field').hidden = !$('music').value;
   $('story-label').textContent = ({ continue: 'Quelle série continuer ?', resume: 'Quelle histoire reprendre ?', finish: 'Pour quelle histoire ?', check: 'Quelle histoire vérifier ?' })[mode] || '';
   $('subtitles-field').hidden = mode === 'check';
+  $('model-field').hidden = ['finish', 'check'].includes(mode);
   $('subtitles-hint').textContent = $('subtitles').checked ? 'Activés : les dialogues sont incrustés en bas de la vidéo.' : 'Désactivés : la vidéo est livrée sans texte incrusté.';
   fillStories();
   $('story-hint').textContent = ({
@@ -113,8 +114,8 @@ function updateForm() {
     check: 'Contrôle ce qui manque, sans rien générer et sans dépenser de crédit.',
   })[mode] || '';
   $('summary').textContent = ({
-    generate: `${STYLE_EMOJI[selectedStyle()]} Partie 1 · 6-7 clips de 10 s · ≈ 100 crédits · ≈ 25 min`,
-    continue: `${nextPartLabel()} · 6-7 clips de 10 s · ≈ 100 crédits · ≈ 25 min`,
+    generate: `${STYLE_EMOJI[selectedStyle()]} Partie 1 · 6-7 clips de 10 s · ${partCost()} · ≈ 25 min`,
+    continue: `${nextPartLabel()} · 6-7 clips de 10 s · ${partCost()} · ≈ 25 min`,
     resume: 'Reprend là où ça s’est arrêté · crédits seulement pour ce qui manque',
     finish: 'Musique et sous-titres refaits · 0 crédit',
     check: 'Vérification · 0 crédit',
@@ -131,6 +132,13 @@ function updateForm() {
 }
 document.querySelectorAll('input[name=style]').forEach(input => input.addEventListener('change', updateForm));
 $('subtitles').addEventListener('change', updateForm);
+const selectedModel = () => document.querySelector('input[name=video-model]:checked')?.value || 'omni-1.1';
+const partCost = () => selectedModel() === 'omni-1.2' ? '≈ 180-210 crédits' : '≈ 90-105 crédits';
+document.querySelectorAll('input[name=video-model]').forEach(input => input.addEventListener('change', () => {
+  try { localStorage.setItem('workflowai-model', selectedModel()); } catch {}
+  updateForm();
+}));
+try { const saved = localStorage.getItem('workflowai-model'); if (saved) document.querySelector(`input[name=video-model][value="${saved === 'omni-1.2' ? 'omni-1.2' : 'omni-1.1'}"]`).checked = true; } catch {}
 $('story').addEventListener('change', updateForm);
 // Next part of the selected series, from its latest delivery.
 function nextPartLabel() {
@@ -165,11 +173,12 @@ function fillChoices() {
 }
 
 // ---------- Vidéos ----------
+const MEDIA_PATH = /^\/media\/[a-f0-9]{24}\/((full|part-[1-9][0-9]?)\.mp4|cover-[1-9][0-9]?\.png)$/;
 function safeFileURL(url) {
   if (shared) {
-    try { const resource = new URL(url); return resource.origin === new URL(config.apiBase || location.origin).origin && /^\/media\/[a-f0-9]{24}\/(full|part-[1-9][0-9]?)\.mp4$/.test(resource.pathname); } catch { return false; }
+    try { const resource = new URL(url); return resource.origin === new URL(config.apiBase || location.origin).origin && MEDIA_PATH.test(resource.pathname); } catch { return false; }
   }
-  if (local) return /^\/media\/[a-f0-9]{24}\/(full|part-[1-9][0-9]?)\.mp4$/.test(url || '');
+  if (local) return MEDIA_PATH.test(url || '');
   return typeof url === 'string' && url.startsWith(`https://github.com/${config.owner}/${config.repository}/releases/download/`);
 }
 function streamURL(file) {
@@ -183,7 +192,7 @@ function clickLink(href, filename, external = false) {
 async function download(entry, file, control) {
   control.disabled = true; const original = control.textContent; control.textContent = 'Préparation…';
   try {
-    const name = `${entry.title}-${file.kind}.mp4`;
+    const name = `${entry.title}-${file.kind}.${file.kind.startsWith('cover-') ? 'png' : 'mp4'}`;
     if (local) { const url = new URL(shared && streamURL(file) || file.url, location.href); if (!shared || !streamURL(file)) url.searchParams.set('download', '1'); clickLink(url.href, name); }
     else if (streamURL(file)) clickLink(streamURL(file), name, true);
     else clickLink(file.url, null, true);
@@ -225,7 +234,8 @@ function renderSheet(entry) {
     const social = entry.social?.parts?.find(p => p.part === number);
     const box = element('article', undefined, 'part');
     const head = element('div', undefined, 'part-head');
-    if (social?.cover) { const img = element('img', undefined, 'part-thumb'); img.src = social.cover; img.alt = ''; head.append(img); }
+    const thumb = social?.cover || (number === 1 && entry.social ? entry.cover : null);
+    if (thumb) { const img = element('img', undefined, 'part-thumb'); img.src = thumb; img.alt = ''; head.append(img); }
     const info = element('div', undefined, 'grow');
     info.append(element('strong', file.label), element('small', `${file.scenes ? `${file.scenes} clips · ` : ''}${duration(file.duration)} · ${Math.max(1, Math.round(file.bytes / 1048576))} Mo`));
     const stamp = downloaded[`${entry.id}/${file.kind}`];
@@ -236,6 +246,11 @@ function renderSheet(entry) {
       actions.append(button('▷ Voir', 'play', () => play(entry, file)));
       const save = button('↓ Télécharger', '', () => download(entry, file, save)); actions.append(save);
     } else actions.append(element('span', 'Synchronisation en cours…', 'hint'));
+    const coverFile = entry.covers?.find(c => c.part === number);
+    if (coverFile && safeFileURL(coverFile.url)) {
+      const label = downloaded[`${entry.id}/${coverFile.kind}`] ? '✓ Miniature téléchargée' : '🖼️ Télécharger la miniature';
+      const get = button(label, 'cover-button', () => download(entry, coverFile, get)); actions.append(get);
+    }
     box.append(actions);
     if (social?.caption) {
       const caption = element('p', social.caption + ' ', 'caption');
@@ -439,7 +454,7 @@ $('generate-form').addEventListener('submit', async event => {
   if (mode !== 'generate' && !$('story').value) { $('form-message').textContent = 'Choisis une histoire.'; $('story').focus(); return; }
   const idea = $('idea').value.trim();
   busy = true; updateForm(); $('form-message').textContent = '';
-  const input = { mode, story: mode === 'generate' ? '' : $('story').value, music: mode === 'check' ? '' : $('music').value, musicVolume: Number($('volume').value) / 100, creditLimit: Number($('budget').value) || 350,
+  const input = { mode, story: mode === 'generate' ? '' : $('story').value, music: mode === 'check' ? '' : $('music').value, musicVolume: Number($('volume').value) / 100, creditLimit: Number($('budget').value) || 350, videoModel: selectedModel(),
     subtitles: $('subtitles').checked, ...(mode === 'generate' ? { style: selectedStyle(), idea } : {}) };
   try {
     let job;
@@ -448,7 +463,7 @@ $('generate-form').addEventListener('submit', async event => {
       const id = crypto.randomUUID();
       await request(`${repo()}/actions/workflows/${config.workflow}/dispatches`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref: config.ref, inputs: {
         mode: input.mode, story: input.story, music: input.music, music_volume: String(input.musicVolume), credit_limit: String(input.creditLimit), request_id: id,
-        style: input.style || 'fruits', idea: input.idea || '', subtitles: input.subtitles ? 'on' : 'off' } }) });
+        style: input.style || 'fruits', idea: input.idea || '', subtitles: input.subtitles ? 'on' : 'off', video_model: input.videoModel } }) });
       job = { id, ...input, title: input.mode === 'generate' ? 'Nouvelle histoire' : dashboard.stories.find(s => s.id === input.story)?.title, status: 'queued', stage: 'story', percent: 0, createdAt: new Date().toISOString() };
       pending.unshift(job); store('workflowai-pending', pending);
     }
